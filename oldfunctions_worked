@@ -1,0 +1,34 @@
+"use strict";
+const functions = require("firebase-functions");
+const {WebhookClient} = require("dialogflow-fulfillment");
+/**
+ * @param {Object} request - The request object
+ * @param {Object} response - The response object
+ */
+exports.dialogflowFirebaseFulfillment =
+ functions.https.onRequest(
+     (request, response) => {
+       const agent = new WebhookClient({request, response});
+       console.log("Df headers: " + JSON.stringify(request.headers));
+       console.log("Df body: "+ JSON.stringify(request.body));
+       /**
+        * Handler for the Default Fallback Intent
+        * @param {Object} agent - The Dialogflow agent
+        */
+       function welcome(agent) {
+         agent.add(`Welcome to my agent!`);
+       }
+       /**
+        * Handler for the Default Fallback Intent
+        * @param {Object} agent - The Dialogflow agent
+        */
+       function fallback(agent) {
+         agent.add(`I am sorry.please contact team members for the support`);
+         agent.add(`I'm sorry, can you try again?`);
+       }
+
+       const intentMap = new Map();
+       intentMap.set("Default Welcome Intent", welcome);
+       intentMap.set("Default Fallback Intent", fallback);
+       agent.handleRequest(intentMap);
+     });
