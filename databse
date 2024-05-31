@@ -1,0 +1,72 @@
+const http = require("http");
+const {WebhookClient} = require("dialogflow-fulfillment");
+const admin = require("firebase-admin");
+
+const serviceAccount = require(
+    "/home/guest/Downloads/security.json");
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+  databaseURL: "https://snehitha-bot-default-rtdb.firebaseio.com",
+});
+
+const db = admin.firestore();
+
+const server = http.createServer((req, res) => {
+  if (req.method === "GET" && req.url === "/") {
+    res.writeHead(200, {"Content-Type": "text/plain"});
+    res.end("We are live");
+  } else if (req.method === "POST" && req.url === "/") {
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk.toString();
+    });
+
+    req.on("end", () => {
+      const agent = new WebhookClient({
+        request: {body: JSON.parse(body)},
+        response: res,
+      });
+      /**
+      * Sends a demo response from the Webhook server.
+      * @param {WebhookClient} agent The Dialogflow WebhookClient object.
+      */
+      function demo(agent) {
+        agent.add("Sending response from Webhook server as v1.1.11.1");
+      }
+      /**
+      * Handles final confirmation and adds meeting details to the database.
+      * @param {WebhookClient} agent The Dialogflow WebhookClient object.
+      * @return {Promise} A promise that resolves when added to the database.
+      */
+      function finalConfirmation(agent) {
+        const name=agent.context.get("awaiting_name").parameters["given-name"];
+        const email=agent.context.get("awaiting_email").parameters.email;
+
+        console.log(name);
+        console.log(email);
+
+        agent.add(`Hello ${name}, your email: ${email}. We confirmed.`);
+
+        return db.collection("meeting").add({
+          name: name,
+          email: email,
+          time: Date.now(),
+        }).then((ref) =>
+          console.log("Meeting details added to DB"),
+        );
+      }
+
+      const intentMap = new Map();
+      intentMap.set("finalConfirmation", finalConfirmation);
+      intentMap.set("webhookDemo", demo);
+
+      agent.handleRequest(intentMap);
+    });
+    server.listen(3333, () => {
+    console.log("Server is live at port 3333");
+    });
+
+
+
+
