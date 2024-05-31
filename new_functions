@@ -1,0 +1,62 @@
+"use strict";
+const functions = require("firebase-functions");
+const admin = require('firebase-admin'); 
+const {WebhookClient} = require("dialogflow-fulfillment");
+
+admin.initializeApp({
+  // Your Firebase project credentials
+});
+
+const db = admin.database().ref(); 
+
+/**
+ * @param {Object} request - The request object
+ * @param {Object} response - The response object
+ */
+exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, response) => {
+  const agent = new WebhookClient({ request, response });
+  console.log("Df headers: " + JSON.stringify(request.headers));
+  console.log("Df body: " + JSON.stringify(request.body));
+
+  /**
+   * Handler for the Welcome Intent
+   * @param {Object} agent - The Dialogflow agent
+   */
+  function welcome(agent) {
+    const request = agent.request;
+    const name = request.body.queryResult.parameters.given_name;
+    const email = request.body.queryResult.parameters.email; 
+
+    
+    if (name && email) {
+      const userRef = db.push();
+      userRef.set({
+        name: name,
+        email: email,
+      })
+      .then(() => {
+        agent.add(`Welcome to my agent, ${name}!`);
+      })
+      .catch((error) => {
+        console.error("Error storing user data:", error);
+        agent.add("There was a problem storing your information. Please try again later.");
+      });
+    } else {
+      agent.add(`Hi! To get started, can you tell me your name?`);
+    }
+  }
+
+  /**
+   * Handler for the Fallback Intent
+   * @param {Object} agent - The Dialogflow agent
+   */
+  function fallback(agent) {
+    agent.add(`I am sorry. Please contact team members for the support`);
+    agent.add(`I'm sorry, can you try again?`);
+  }
+
+  const intentMap = new Map();
+  intentMap.set("Welcome Intent", welcome); 
+  intentMap.set("Default Fallback", fallback);
+  agent.handleRequest(intentMap);
+});
