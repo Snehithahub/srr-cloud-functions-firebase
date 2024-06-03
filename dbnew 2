@@ -1,0 +1,65 @@
+"use strict";
+const functions = require("firebase-functions");
+const {WebhookClient} = require("dialogflow-fulfillment");
+const admin = require("firebase-admin");
+const serviceAccount = require("/home/guest/Downloads/security.json");
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+  databaseURL: "https://bot-snehitha07-default-rtdb.firebaseio.com/",
+});
+
+const db = admin.database();
+
+/**
+ * HTTP Cloud Function that handles Dialogflow webhook requests.
+ *
+ * @param {Object} request - The request object from Dialogflow.
+ * @param {Object} response - The response object to send back to Dialogflow.
+ * @return {void}
+ */
+exports.dialogflowFirebaseFulfillment = functions.https.onRequest(
+    (request, response) => {
+      const agent = new WebhookClient({request, response});
+      console.log("Df headers: " + JSON.stringify(request.headers));
+      console.log("Df body: " + JSON.stringify(request.body));
+
+      /**
+ * Writes user information to the Firebase Realtime Database.
+ *
+ * @param {Object} agent - The Dialogflow agent object.
+ * @param {string} agent.parameters.name - The user's name.
+ * @param {string} agent.parameters.email - The user's email.
+ * @return {Promise<void>} A promise that resolves
+ */
+function welcome(agent) {
+        agent.add(`Welcome to my agent!`);
+        const name = agent.parameters.name;
+        const email = agent.parameters.email;
+        const userId = agent.session.split("/").pop();
+        return db.ref("users/" + userId).set({
+          username: name,
+          email: email,
+        }).then(() => {
+          agent.add(`Thanks, ${name}. Your email ${email} has been saved.`);
+        }).catch((error) => {
+          console.error("Error writing to database: ", error);
+          agent.add(`Failed to save your information to the database.`);
+        });
+      }
+
+      /**
+   * Handler for the Default Fallback Intent
+   * @param {Object} agent - The Dialogflow agent
+   */
+      function fallback(agent) {
+        agent.add(`I am sorry!Please contact team members for support.`);
+        agent.add(`I'm sorry, can you try again?`);
+      }
+      const intentMap = new Map();
+      intentMap.set("Default Welcome Intent", welcome);
+      intentMap.set("Default Fallback Intent", fallback);
+      agent.handleRequest(intentMap);
+    });
+
+
